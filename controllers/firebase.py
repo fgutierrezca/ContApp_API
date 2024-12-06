@@ -67,7 +67,7 @@ async def register_user_firebase(user: UserRegister):
         )
 
     # Crear el usuario en la base de datos de Azure SQL
-    query = f"INSERT INTO dbo.USERS (FirstName, LastName, Email) VALUES ('{user.firstname}', '{user.lastname}', '{user.email}');"
+    query = f"INSERT INTO dbo_test.USERS (FirstName, LastName, Email) VALUES ('{user.firstname}', '{user.lastname}', '{user.email}');"
     result = {}
     try:
 
@@ -75,7 +75,7 @@ async def register_user_firebase(user: UserRegister):
         print(result_json)
         result = json.loads(result_json)[0]
 
-        # await insert_message_on_queue(user.email)
+        await insert_message_on_queue(user.email)
 
         return result
 
@@ -103,7 +103,7 @@ async def login_user_firebase(user: UserLogin):
                 detail=f"Error al autenticar usuario: {response_data['error']['message']}"
             )
 
-        query = f"SELECT [FirstName], [LastName], [Email], [Active] FROM [dbo].[USERS] WHERE [Email] = '{ user.email }'"
+        query = f"SELECT [FirstName], [LastName], [Email], [Active], CONVERT(NVARCHAR, [Activate_at], 120) AS Activate_at FROM [dbo_test].[USERS] WHERE [Email] = '{ user.email }'"
 
         try:
             result_json = await fetch_query_as_json(query)
@@ -147,7 +147,7 @@ async def generate_activation_code(email: EmailActivation):
 
     # Generar el codigo
     code = random.randint(100000, 999999)
-    query = f"INSERT INTO dbo.ACTIVATION_CODES (Email, Code) VALUES ('{email.email}', {code})"
+    query = f"INSERT INTO dbo_test.ACTIVATION_CODES (Email, Code) VALUES ('{email.email}', {code})"
     result = {}
     try:
         result_json = await fetch_query_as_json(query)
@@ -161,8 +161,8 @@ async def generate_activation_code(email: EmailActivation):
         "code": code
     }
 
-async def get_activation_code(email: EmailActivation, code: CodeRequest):
-    query = f"SELECT TOP 1 [dbo].[ACTIVATION_CODES].[Id], [dbo].[ACTIVATION_CODES].[Email], [dbo].[USERS].[FirstName] + ' ' + [dbo].[USERS].[LastName] AS Name, [dbo].[ACTIVATION_CODES].[Code], CONVERT(NVARCHAR, [dbo].[ACTIVATION_CODES].[Created_at], 120) AS Created_at, CONVERT(NVARCHAR, [dbo].[ACTIVATION_CODES].[Expired_at], 120) AS Expired_at FROM [dbo].[ACTIVATION_CODES] INNER JOIN [dbo].[USERS] ON [dbo].[USERS].[Email] = [dbo].[ACTIVATION_CODES].[Email] WHERE [dbo].[ACTIVATION_CODES].[Code] = '{code.code}' AND [dbo].[ACTIVATION_CODES].[Email] = '{email.email}' ORDER BY Created_at DESC;"
+async def verify_activation_code(email: EmailActivation, code: CodeRequest):
+    query = f"SELECT TOP 1 [dbo_test].[ACTIVATION_CODES].[Id] FROM [dbo_test].[ACTIVATION_CODES] INNER JOIN [dbo_test].[USERS] ON [dbo_test].[USERS].[Email] = [dbo_test].[ACTIVATION_CODES].[Email] WHERE [dbo_test].[ACTIVATION_CODES].[Code] = '{code.code}' AND [dbo_test].[ACTIVATION_CODES].[Email] = '{email.email}' ORDER BY [dbo_test].[ACTIVATION_CODES].[Created_at] DESC;"
     
     try:
         result_json = await fetch_query_as_json(query)
@@ -171,24 +171,16 @@ async def get_activation_code(email: EmailActivation, code: CodeRequest):
         if not results:
             return {}
         
+        current_datetime = datetime.now()
+        formatted_datetime = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
+        
+        query2 = f"UPDATE [dbo_test].[USERS] SET [Active] = 1, [Activate_at] = '{formatted_datetime}' WHERE [Email] = '{email.email}';"
+        result_json_update = await fetch_query_as_json(query2)
+
+        if result_json_update == "0":
+            raise HTTPException(status_code=404, detail="No se pudo hacer la activacion")
+
         return results[0]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-async def activate_account_true(email: EmailActivation):
-    query = f"UPDATE [dbo].[USERS] SET [Active] = 1 WHERE [Email] = '{email.email}';"
-    print('Hola')
-    
-    try:
-        result_json = await fetch_query_as_json(query)
-        
-        if result_json == "0":
-            raise HTTPException(status_code=404, detail="No se encontró el usuario en la base de datos")
-        
-        return {"message": "Activacion exitosa del usuario"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    

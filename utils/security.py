@@ -17,7 +17,7 @@ SECRET_KEY_FUNC = os.getenv("SECRET_KEY_FUNC")
 
 # Función para crear un JWT
 def create_jwt_token(firstname:str, lastname:str, email: str, active: bool):
-    expiration = datetime.now() + timedelta(hours=1)  # El token expira en 1 hora
+    expiration = datetime.utcnow() + timedelta(hours=1)  # El token expira en 1 hora
     token = jwt.encode(
         {
             "firstname": firstname,
@@ -25,7 +25,7 @@ def create_jwt_token(firstname:str, lastname:str, email: str, active: bool):
             "email": email,
             "active": active,
             "exp": expiration,
-            "iat": datetime.now()
+            "iat": datetime.utcnow()
         },
         SECRET_KEY,
         algorithm="HS256"
@@ -64,7 +64,7 @@ def validate(func):
             if email is None or expired is None or active is None:
                 raise HTTPException(status_code=400, detail="Invalid token")
 
-            if datetime.fromtimestamp(expired) < datetime.now():
+            if datetime.utcfromtimestamp(expired) < datetime.utcnow():
                 raise HTTPException(status_code=401, detail="Expired token")
 
             if not active:
@@ -106,7 +106,7 @@ def validate_for_inactive(func):
             if email is None or expired is None:
                 raise HTTPException(status_code=400, detail="Invalid token")
 
-            if datetime.fromtimestamp(expired) < datetime.now():
+            if datetime.utcfromtimestamp(expired) < datetime.utcnow():
                 raise HTTPException(status_code=401, detail="Expired token")
 
 

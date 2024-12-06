@@ -12,7 +12,7 @@ from models.UserLogin import UserLogin
 from models.EmailActivation import EmailActivation
 from models.codeActivation import CodeRequest
 
-from controllers.firebase import get_activation_code, register_user_firebase, login_user_firebase, generate_activation_code, activate_account_true
+from controllers.firebase import verify_activation_code, register_user_firebase, login_user_firebase, generate_activation_code
 
 app = FastAPI()
 
@@ -27,13 +27,13 @@ app.add_middleware(
 @app.get("/")
 async def read_root(response: Response):
     response.headers["Cache-Control"] = "no-cache"
-    query = "SELECT [FirstName], [LastName], [Email], [Active] FROM [dbo].[USERS]"
+    query = "SELECT [FirstName], [LastName], [Email], [Active] FROM [dbo_test].[USERS]"
     try:
         result = await fetch_query_as_json(query)
         result_dict = json.loads(result)
         result_dict = {
             "data": result_dict
-            , "version": "0.0.2"
+            , "version": "0.0.4"
         }
         return result_dict
     except Exception as e:
@@ -65,16 +65,11 @@ async def generate_code(request: Request, email: str):
     e = EmailActivation(email=email)
     return await generate_activation_code(e)
 
-@app.post("/user/{email}/code/get")
-async def get_code(request: Request, code: CodeRequest, email: str):
+@app.post("/user/{email}/code/{code}")
+async def activate_account(request: Request, code: str, email: str):
     e = EmailActivation(email=email)
-    return await get_activation_code(e, code)
-
-@app.put("/user/{email}")
-# @validate
-async def activate_account(request: Request, email: str):
-    e = EmailActivation(email=email)
-    return await activate_account_true(e)
+    c = CodeRequest(code=code)
+    return await verify_activation_code(e, c)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
